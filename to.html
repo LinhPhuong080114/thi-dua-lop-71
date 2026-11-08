@@ -280,4 +280,628 @@
           projectId: "planning-with-ai-3f2fe",
           storageBucket: "planning-with-ai-3f2fe.firebasestorage.app",
           messagingSenderId: "384461302475",
-          appId: "1:384461
+          appId: "1:384461302475:web:c2db4957b0678f0299894e"
+        };
+
+        const DEFAULT_TEAMS = [
+            { id: 1, label: "Tổ 1", color: "#FBC02D", bgClass: "bg-amber-400", textClass: "text-amber-400", borderClass: "border-amber-400", steps: 100, icon: "🦆" },
+            { id: 2, label: "Tổ 2", color: "#EC4899", bgClass: "bg-pink-500", textClass: "text-pink-400", borderClass: "border-pink-500", steps: 100, icon: "🐥" },
+            { id: 3, label: "Tổ 3", color: "#38BDF8", bgClass: "bg-sky-400", textClass: "text-sky-400", borderClass: "border-sky-400", steps: 100, icon: "🦢" },
+            { id: 4, label: "Tổ 4", color: "#C084FC", bgClass: "bg-purple-400", textClass: "text-purple-400", borderClass: "border-purple-400", steps: 100, icon: "🦩" },
+        ];
+
+        let state = {
+            teams: JSON.parse(JSON.stringify(DEFAULT_TEAMS)),
+            history: [],
+            announcements: [],
+            adminPin: "1234",
+            activeAdminSessionId: null,
+            mySessionId: Math.random().toString(36).substring(2, 9),
+            isAdmin: false,
+            user: null,
+            maxStepsTrack: 250
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        const raceDocRef = doc(db, 'public_duck_races', appId);
+
+        function loadLocalState() {
+            try {
+                const saved = localStorage.getItem('DUCK_RACE_' + appId);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.teams) state.teams = parsed.teams;
+                    if (parsed.history) state.history = parsed.history;
+                    if (parsed.announcements) state.announcements = parsed.announcements;
+                    if (parsed.adminPin) state.adminPin = parsed.adminPin;
+                }
+            } catch (e) {}
+        }
+
+        function saveLocalState() {
+            try {
+                localStorage.setItem('DUCK_RACE_' + appId, JSON.stringify({
+                    teams: state.teams,
+                    history: state.history,
+                    announcements: state.announcements,
+                    adminPin: state.adminPin
+                }));
+            } catch (e) {}
+        }
+
+        async function initAuth() {
+            try {
+                await signInAnonymously(auth);
+            } catch (err) {
+                loadLocalState();
+                render();
+            }
+        }
+        initAuth();
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                state.user = user;
+                subscribeToRaceState();
+                render();
+            }
+        });
+
+        function subscribeToRaceState() {
+            onSnapshot(raceDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data) {
+                        if (Array.isArray(data.teams)) state.teams = data.teams;
+                        if (Array.isArray(data.history)) state.history = data.history;
+                        if (Array.isArray(data.announcements)) state.announcements = data.announcements;
+                        if (data.adminPin) state.adminPin = data.adminPin;
+                        
+                        state.activeAdminSessionId = data.activeAdminSessionId || null;
+                        if (state.isAdmin && state.activeAdminSessionId && state.activeAdminSessionId !== state.mySessionId) {
+                            state.isAdmin = false;
+                            updateAdminBtnUI();
+                            showToast("Máy khác vừa đăng nhập Quản Trị Viên!", "error");
+                        }
+
+                        saveLocalState();
+                        render();
+                    }
+                } else {
+                    saveRaceState(DEFAULT_TEAMS, [], [], "1234", null);
+                }
+            }, (error) => {
+                loadLocalState();
+                render();
+            });
+        }
+
+        async function saveRaceState(teamsData = state.teams, historyData = state.history, announcementsData = state.announcements, pin = state.adminPin, adminSession = state.activeAdminSessionId) {
+            state.teams = teamsData;
+            state.history = historyData;
+            state.announcements = announcementsData;
+            state.adminPin = pin;
+            saveLocalState();
+            render();
+
+            if (!state.user) return;
+            try {
+                await setDoc(raceDocRef, {
+                    teams: teamsData,
+                    history: historyData,
+                    announcements: announcementsData,
+                    adminPin: pin,
+                    activeAdminSessionId: adminSession,
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
+            } catch (err) {}
+        }
+
+        window.addStepsByInput = function(teamId, isSubtract = false) {
+            if (!state.isAdmin) return;
+            const input = document.getElementById(`deltaInput-${teamId}`);
+            const reasonInput = document.getElementById(`reasonInput-${teamId}`);
+            
+            let val = parseInt(input.value, 10);
+            if (isNaN(val) || val === 0) {
+                showToast("Vui lòng nhập số bước hợp lệ!", "error");
+                return;
+            }
+
+            if (isSubtract) val = -Math.abs(val);
+            let reason = reasonInput.value.trim() || (isSubtract ? "Trừ điểm thi đua" : "Cộng điểm thi đua");
+
+            const targetTeam = state.teams.find(t => t.id === teamId);
+            if (!targetTeam) return;
+
+            const oldSteps = targetTeam.steps;
+            const newSteps = Math.max(0, oldSteps + val);
+
+            const updatedTeams = state.teams.map(team => {
+                if (team.id === teamId) {
+                    return { ...team, steps: newSteps };
+                }
+                return team;
+            });
+
+            const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const historyItem = {
+                id: Math.random().toString(36).substring(2, 9),
+                time: timeStr,
+                teamLabel: targetTeam.label,
+                teamIcon: targetTeam.icon,
+                delta: val,
+                reason: reason,
+                newTotal: newSteps
+            };
+
+            const updatedHistory = [historyItem, ...state.history].slice(0, 50);
+
+            saveRaceState(updatedTeams, updatedHistory, state.announcements, state.adminPin, state.mySessionId);
+            
+            input.value = '';
+            reasonInput.value = '';
+            showToast(`Đã ${val > 0 ? 'cộng' : 'trừ'} bước cho ${targetTeam.label}!`, "success");
+        };
+
+        window.setTotalStepsByInput = function(teamId) {
+            if (!state.isAdmin) return;
+            const input = document.getElementById(`totalInput-${teamId}`);
+            const reasonInput = document.getElementById(`reasonTotalInput-${teamId}`);
+            
+            const val = parseInt(input.value, 10);
+            if (isNaN(val)) {
+                showToast("Vui lòng nhập tổng số bước mới!", "error");
+                return;
+            }
+
+            const targetTeam = state.teams.find(t => t.id === teamId);
+            if (!targetTeam) return;
+
+            let reason = reasonInput.value.trim() || "Cập nhật lại tổng số bước";
+            const diff = val - targetTeam.steps;
+
+            const updatedTeams = state.teams.map(team => {
+                if (team.id === teamId) {
+                    return { ...team, steps: Math.max(0, val) };
+                }
+                return team;
+            });
+
+            const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const historyItem = {
+                id: Math.random().toString(36).substring(2, 9),
+                time: timeStr,
+                teamLabel: targetTeam.label,
+                teamIcon: targetTeam.icon,
+                delta: diff,
+                reason: `[Cập nhật tổng] ${reason}`,
+                newTotal: Math.max(0, val)
+            };
+
+            const updatedHistory = [historyItem, ...state.history].slice(0, 50);
+
+            saveRaceState(updatedTeams, updatedHistory, state.announcements, state.adminPin, state.mySessionId);
+            input.value = '';
+            reasonInput.value = '';
+            showToast(`Đã cập nhật tổng bước cho ${targetTeam.label}!`, "success");
+        };
+
+        window.deleteAnnouncement = function(id) {
+            if (!state.isAdmin) return;
+            const updatedAnnouncements = state.announcements.filter(item => item.id !== id);
+            saveRaceState(state.teams, state.history, updatedAnnouncements, state.adminPin, state.mySessionId);
+            showToast("Đã xóa thông báo!", "success");
+        };
+
+        function render() {
+            const maxSteps = Math.max(...state.teams.map(t => t.steps), 100);
+            state.maxStepsTrack = Math.ceil((maxSteps + 30) / 10) * 10;
+
+            renderCards();
+            renderTracks();
+            renderAnnouncements();
+            renderHistory();
+            renderAdminPanel();
+        }
+
+        function renderCards() {
+            const container = document.getElementById('cardsGrid');
+            const sorted = [...state.teams].sort((a, b) => b.steps - a.steps);
+
+            container.innerHTML = state.teams.map(team => {
+                const rank = sorted.findIndex(t => t.id === team.id) + 1;
+                let rankBadge = `#${rank}`;
+                if (rank === 1) rankBadge = '🥇 Hạng 1';
+                else if (rank === 2) rankBadge = '🥈 Hạng 2';
+                else if (rank === 3) rankBadge = '🥉 Hạng 3';
+
+                return `
+                    <div class="bg-chalkBoard rounded-2xl p-4 border border-emerald-800 shadow-md flex flex-col justify-between">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-3xl">${team.icon}</span>
+                            <span class="text-xs font-bold px-2 py-0.5 rounded ${team.bgClass} text-slate-950">
+                                ${rankBadge}
+                            </span>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-white text-base">${team.label}</h4>
+                            <div class="flex items-baseline gap-1 mt-1">
+                                <span class="text-3xl font-bold ${team.textClass}">${team.steps}</span>
+                                <span class="text-xs text-emerald-400 font-bold">bước</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderTracks() {
+            const container = document.getElementById('tracksContainer');
+
+            container.innerHTML = state.teams.map(team => {
+                const percentage = Math.min(100, Math.max(0, (team.steps / state.maxStepsTrack) * 100));
+
+                return `
+                    <div class="space-y-1.5">
+                        <div class="flex items-center justify-between text-xs font-bold px-1">
+                            <span class="text-emerald-200 flex items-center gap-1.5">
+                                <span class="w-3 h-3 rounded-full inline-block" style="background-color: ${team.color}"></span>
+                                ${team.label} (${team.icon})
+                            </span>
+                            <span class="${team.textClass} font-mono text-sm">${team.steps} Bước</span>
+                        </div>
+
+                        <div class="relative h-14 bg-chalkSoft/60 rounded-xl border border-emerald-700/60 flex items-center px-4 overflow-hidden">
+                            <div class="duck-lane absolute top-1/2 -translate-y-1/2 flex items-center z-10" style="left: calc(${percentage}% - 22px);">
+                                <div class="text-3xl sm:text-4xl animate-waddle">
+                                    ${team.icon}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderAnnouncements() {
+            const container = document.getElementById('announcementContainer');
+            const adminForm = document.getElementById('adminAnnouncementForm');
+            const clearBtn = document.getElementById('clearAnnouncementsBtn');
+
+            if (state.isAdmin) {
+                adminForm.classList.remove('hidden');
+                clearBtn.classList.remove('hidden');
+            } else {
+                adminForm.classList.add('hidden');
+                clearBtn.classList.add('hidden');
+            }
+
+            if (!state.announcements || state.announcements.length === 0) {
+                container.innerHTML = `<p class="text-xs text-emerald-400/80 italic text-center py-2">Chưa có thông báo nào từ Quản trị viên.</p>`;
+                return;
+            }
+
+            container.innerHTML = state.announcements.map(item => {
+                const deleteBtnHtml = state.isAdmin ? `
+                    <button onclick="deleteAnnouncement('${item.id}')" class="text-rose-400 hover:text-rose-300 p-1 rounded transition ml-2" title="Xóa thông báo">
+                        <i class="fa-solid fa-xmark text-sm"></i>
+                    </button>
+                ` : '';
+
+                return `
+                    <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-start justify-between gap-3 text-xs">
+                        <div class="space-y-1 flex-1">
+                            <div class="flex items-center gap-2">
+                                <span class="bg-amber-400 text-slate-950 font-bold px-1.5 py-0.5 rounded text-[10px]">ADMIN</span>
+                                <span class="text-emerald-400 font-mono text-[11px]">${item.time}</span>
+                            </div>
+                            <p class="text-white font-medium text-sm leading-relaxed">${item.content}</p>
+                        </div>
+                        ${deleteBtnHtml}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderHistory() {
+            const container = document.getElementById('historyContainer');
+            const clearBtn = document.getElementById('clearHistoryBtn');
+
+            if (state.isAdmin) {
+                clearBtn.classList.remove('hidden');
+            } else {
+                clearBtn.classList.add('hidden');
+            }
+
+            if (!state.history || state.history.length === 0) {
+                container.innerHTML = `<p class="text-xs text-emerald-400/80 italic text-center py-2">Chưa có lịch sử thay đổi nào.</p>`;
+                return;
+            }
+
+            container.innerHTML = state.history.map(item => {
+                const isPositive = item.delta >= 0;
+                const badgeColor = isPositive ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border-rose-500/40';
+                const sign = isPositive ? `+${item.delta}` : `${item.delta}`;
+
+                return `
+                    <div class="bg-chalkSoft/40 border border-emerald-800/60 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="text-emerald-400 font-mono text-[11px] bg-chalkBoard px-2 py-1 rounded border border-emerald-900">${item.time}</span>
+                            <span class="font-bold text-white flex items-center gap-1">${item.teamIcon} ${item.teamLabel}</span>
+                            <span class="px-2 py-0.5 rounded font-bold border ${badgeColor}">${sign} bước</span>
+                        </div>
+                        <div class="text-emerald-200 flex-1 sm:text-right">
+                            <span class="italic text-slate-300">Lý do:</span> <span class="font-semibold text-white">${item.reason}</span> 
+                            <span class="text-emerald-400 ml-2">(Tổng: <strong class="text-amber-300">${item.newTotal}</strong>)</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderAdminPanel() {
+            const panel = document.getElementById('adminPanel');
+            const grid = document.getElementById('adminControlsGrid');
+
+            if (!state.isAdmin) {
+                panel.classList.add('hidden');
+                return;
+            }
+
+            panel.classList.remove('hidden');
+            grid.innerHTML = state.teams.map(team => {
+                return `
+                    <div class="bg-slate-950 rounded-xl p-4 border border-slate-800 space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-2xl">${team.icon}</span>
+                                <span class="font-bold text-white text-base">${team.label}</span>
+                            </div>
+                            <span class="text-lg font-bold ${team.textClass} bg-slate-900 px-3 py-0.5 rounded-lg border border-slate-800 font-mono">
+                                ${team.steps} bước
+                            </span>
+                        </div>
+
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-bold text-amber-300 uppercase tracking-wider block">Cộng / Trừ Bước & Lý Do:</label>
+                            <div class="flex gap-2">
+                                <input type="number" id="deltaInput-${team.id}" placeholder="Số bước..." 
+                                    class="w-1/3 bg-slate-900 border border-slate-700 text-white text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-amber-400">
+                                <input type="text" id="reasonInput-${team.id}" placeholder="Nhập lý do..." 
+                                    class="w-2/3 bg-slate-900 border border-slate-700 text-white text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-amber-400">
+                            </div>
+                            <div class="flex gap-2 pt-1">
+                                <button onclick="addStepsByInput(${team.id}, false)" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition">
+                                    <i class="fa-solid fa-plus"></i> Cộng Điểm
+                                </button>
+                                <button onclick="addStepsByInput(${team.id}, true)" class="flex-1 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition">
+                                    <i class="fa-solid fa-minus"></i> Trừ Điểm
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 pt-2 border-t border-slate-900">
+                            <label class="text-[11px] font-bold text-sky-300 uppercase tracking-wider block">Ghi Đè Tổng Số Bước:</label>
+                            <div class="flex gap-2">
+                                <input type="number" id="totalInput-${team.id}" placeholder="Tổng mới..." 
+                                    class="w-1/3 bg-slate-900 border border-slate-700 text-white text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-sky-400">
+                                <input type="text" id="reasonTotalInput-${team.id}" placeholder="Lý do ghi đè..." 
+                                    class="w-2/3 bg-slate-900 border border-slate-700 text-white text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-sky-400">
+                            </div>
+                            <button onclick="setTotalStepsByInput(${team.id})" class="w-full py-2 bg-sky-500 hover:bg-sky-400 text-slate-950 rounded-lg text-xs font-bold transition">
+                                Cập Nhật Tổng Bước
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        const sendNoticeForm = document.getElementById('sendNoticeForm');
+        const noticeInput = document.getElementById('noticeInput');
+
+        sendNoticeForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (!state.isAdmin) return;
+
+            const content = noticeInput.value.trim();
+            if (!content) {
+                showToast("Vui lòng nhập nội dung thông báo!", "error");
+                return;
+            }
+
+            const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const noticeItem = {
+                id: Math.random().toString(36).substring(2, 9),
+                time: timeStr,
+                content: content
+            };
+
+            const updatedAnnouncements = [noticeItem, ...state.announcements].slice(0, 30);
+            saveRaceState(state.teams, state.history, updatedAnnouncements, state.adminPin, state.mySessionId);
+            noticeInput.value = '';
+            showToast("Đã đăng thông báo mới!", "success");
+        });
+
+        const clearAnnouncementsBtn = document.getElementById('clearAnnouncementsBtn');
+        clearAnnouncementsBtn.addEventListener('click', () => {
+            if (!state.isAdmin) return;
+            if (confirm("Bạn có chắc chắn muốn xóa toàn bộ danh sách thông báo không?")) {
+                saveRaceState(state.teams, state.history, [], state.adminPin, state.mySessionId);
+                showToast("Đã xóa toàn bộ thông báo!", "success");
+            }
+        });
+
+        const adminToggleBtn = document.getElementById('adminToggleBtn');
+        const pinModal = document.getElementById('pinModal');
+        const cancelPinBtn = document.getElementById('cancelPinBtn');
+        const pinForm = document.getElementById('pinForm');
+        const pinInput = document.getElementById('pinInput');
+        const pinError = document.getElementById('pinError');
+        const logoutAdminBtn = document.getElementById('logoutAdminBtn');
+        const adminStatusTag = document.getElementById('adminStatusTag');
+        const adminLockIcon = document.getElementById('adminLockIcon');
+        const adminBtnText = document.getElementById('adminBtnText');
+
+        function updateAdminBtnUI() {
+            if (state.isAdmin) {
+                adminToggleBtn.className = "flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition bg-emerald-500 text-slate-950 hover:bg-emerald-400 shadow";
+                adminLockIcon.className = "fa-solid fa-unlock";
+                adminBtnText.textContent = "Đã Đăng Nhập Admin";
+                adminStatusTag.textContent = "Chế Độ Quản Trị Viên";
+                adminStatusTag.className = "text-xs font-bold mt-0.5 text-emerald-400";
+            } else {
+                adminToggleBtn.className = "flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition bg-amber-500 text-slate-950 hover:bg-amber-400 shadow";
+                adminLockIcon.className = "fa-solid fa-lock";
+                adminBtnText.textContent = "Quản Trị Viên";
+                adminStatusTag.textContent = "Chế Độ Người Xem";
+                adminStatusTag.className = "text-xs font-bold mt-0.5 text-amber-300";
+            }
+        }
+
+        adminToggleBtn.addEventListener('click', () => {
+            if (state.isAdmin) {
+                state.isAdmin = false;
+                saveRaceState(state.teams, state.history, state.announcements, state.adminPin, null);
+                updateAdminBtnUI();
+                showToast("Đã thoát chế độ Quản Trị Viên", "info");
+            } else {
+                pinModal.classList.remove('hidden');
+                pinInput.value = '';
+                pinError.classList.add('hidden');
+                pinInput.focus();
+            }
+        });
+
+        cancelPinBtn.addEventListener('click', () => {
+            pinModal.classList.add('hidden');
+        });
+
+        pinForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const val = pinInput.value.trim();
+            if (val === state.adminPin) {
+                state.isAdmin = true;
+                pinModal.classList.add('hidden');
+                saveRaceState(state.teams, state.history, state.announcements, state.adminPin, state.mySessionId);
+                updateAdminBtnUI();
+                showToast("Đăng nhập Quản Trị Viên thành công!", "success");
+            } else {
+                pinError.classList.remove('hidden');
+            }
+        });
+
+        logoutAdminBtn.addEventListener('click', () => {
+            state.isAdmin = false;
+            saveRaceState(state.teams, state.history, state.announcements, state.adminPin, null);
+            updateAdminBtnUI();
+            showToast("Đã thoát Quản Trị Viên", "info");
+        });
+
+        const changePinBtn = document.getElementById('changePinBtn');
+        const changePinModal = document.getElementById('changePinModal');
+        const cancelChangePinBtn = document.getElementById('cancelChangePinBtn');
+        const changePinForm = document.getElementById('changePinForm');
+        const oldPinInput = document.getElementById('oldPinInput');
+        const newPinInput = document.getElementById('newPinInput');
+        const changePinError = document.getElementById('changePinError');
+
+        changePinBtn.addEventListener('click', () => {
+            changePinModal.classList.remove('hidden');
+            oldPinInput.value = '';
+            newPinInput.value = '';
+            changePinError.classList.add('hidden');
+        });
+
+        cancelChangePinBtn.addEventListener('click', () => {
+            changePinModal.classList.add('hidden');
+        });
+
+        changePinForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const oldVal = oldPinInput.value.trim();
+            const newVal = newPinInput.value.trim();
+
+            if (oldVal !== state.adminPin) {
+                changePinError.textContent = "Mật mã hiện tại không đúng!";
+                changePinError.classList.remove('hidden');
+                return;
+            }
+
+            if (newVal.length < 4) {
+                changePinError.textContent = "Mật mã mới phải có ít nhất 4 ký tự!";
+                changePinError.classList.remove('hidden');
+                return;
+            }
+
+            state.adminPin = newVal;
+            saveRaceState(state.teams, state.history, state.announcements, state.adminPin, state.activeAdminSessionId);
+            changePinModal.classList.add('hidden');
+            showToast("Đã đổi mật mã Admin thành công!", "success");
+        });
+
+        const resetAllBtn = document.getElementById('resetAllBtn');
+        resetAllBtn.addEventListener('click', () => {
+            if (!state.isAdmin) return;
+            if (confirm("Bạn có chắc chắn muốn đặt lại tất cả các tổ về 100 bước không?")) {
+                const resetTeams = state.teams.map(t => ({ ...t, steps: 100 }));
+                const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                const historyItem = {
+                    id: Math.random().toString(36).substring(2, 9),
+                    time: timeStr,
+                    teamLabel: "Hệ thống",
+                    teamIcon: "⚙️",
+                    delta: 0,
+                    reason: "Đặt lại toàn bộ các tổ về 100 bước",
+                    newTotal: 100
+                };
+                const updatedHistory = [historyItem, ...state.history].slice(0, 50);
+                saveRaceState(resetTeams, updatedHistory, state.announcements, state.adminPin, state.mySessionId);
+                showToast("Đã đặt lại toàn bộ các tổ về 100 bước!", "success");
+            }
+        });
+
+        const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+        clearHistoryBtn.addEventListener('click', () => {
+            if (!state.isAdmin) return;
+            if (confirm("Bạn có chắc chắn muốn xóa toàn bộ lịch sử không?")) {
+                saveRaceState(state.teams, [], state.announcements, state.adminPin, state.mySessionId);
+                showToast("Đã xóa lịch sử!", "success");
+            }
+        });
+
+        const shareBtn = document.getElementById('shareBtn');
+        shareBtn.addEventListener('click', () => {
+            const url = window.location.href;
+            navigator.clipboard.writeText(url).then(() => {
+                showToast("Đã sao chép đường link vào bộ nhớ tạm!", "success");
+            }).catch(() => {
+                prompt("Sao chép đường link này để chia sẻ:", url);
+            });
+        });
+
+        window.showToast = function(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            const bgClass = type === 'error' ? 'bg-rose-600 text-white border-rose-500' : (type === 'info' ? 'bg-sky-600 text-white border-sky-500' : 'bg-emerald-600 text-white border-emerald-500');
+            
+            toast.className = `pointer-events-auto px-4 py-3 rounded-xl shadow-2xl border text-xs font-bold flex items-center space-x-2 transition-all duration-300 transform translate-y-2 opacity-0 ${bgClass}`;
+            toast.innerHTML = `<span>${message}</span>`;
+            
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        };
+    </script>
+</body>
+</html>
