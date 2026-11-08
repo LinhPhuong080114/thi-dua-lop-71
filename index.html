@@ -7,13 +7,16 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
-   h1, h2, h3, p, span, a, button {
-    font-family: Arial, "Helvetica Neue", sans-serif;
-}
-        background-color: #1a3324;
-        color: #f0fdf4;
-        margin: 0;
-        padding: 0;
+    /* ===== FONT + NỀN CHÍNH ===== */
+    html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+
+        font-family: "Trebuchet MS", Arial, sans-serif !important;
+
+        background-color: #1a3324 !important;
+        color: #f0fdf4 !important;
+
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
     }
@@ -22,15 +25,47 @@
         box-sizing: border-box;
     }
 
+    /* ===== NỀN BẢNG ===== */
     .chalk-bg {
+        background-color: #1a3324 !important;
+
         background-image:
-            radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 0),
-            linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 0),
-            linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 0);
-        background-size: 24px 24px, 40px 40px, 40px 40px;
+            radial-gradient(
+                rgba(255, 255, 255, 0.08) 1px,
+                transparent 1px
+            ),
+            linear-gradient(
+                to right,
+                rgba(255, 255, 255, 0.03) 1px,
+                transparent 1px
+            ),
+            linear-gradient(
+                to bottom,
+                rgba(255, 255, 255, 0.03) 1px,
+                transparent 1px
+            ) !important;
+
+        background-size:
+            24px 24px,
+            40px 40px,
+            40px 40px !important;
     }
 
-    /* 🦆 CON VỊT NHÚN NHÚN */
+    /* ===== ÉP FONT CHO TOÀN BỘ CHỮ ===== */
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    p,
+    span,
+    a,
+    button {
+        font-family: "Trebuchet MS", Arial, sans-serif !important;
+    }
+
+    /* ===== CON VỊT NHÚN 🦆 ===== */
     @keyframes waddle {
         0%, 100% {
             transform: translateY(0) rotate(0deg);
@@ -48,11 +83,6 @@
     .animate-waddle {
         animation: waddle 0.8s infinite ease-in-out;
         display: inline-block;
-    }
-
-    /* Giữ chữ tiếng Việt hiển thị ổn định */
-    h1, h2, h3, p, span, a, button {
-        font-family: Arial, "Helvetica Neue", sans-serif;
     }
 </style>
 </head>
