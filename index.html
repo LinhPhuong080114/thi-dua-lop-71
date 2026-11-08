@@ -7,14 +7,38 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body { font-family: Arial; background-color: #1a3324; color: #f0fdf4; }
-        .chalk-bg {
-            background-image: 
-                radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 0),
-                linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-            background-size: 24px 24px, 40px 40px, 40px 40px;
+    /* Thiết lập font chữ Arial cho toàn bộ website */
+    html, body {
+        font-family: Arial, Helvetica, sans-serif !important;
+        background-color: #1a3324;
+        color: #f0fdf4;
+    }
+
+    /* Áp dụng Arial cho các thành phần biểu mẫu */
+    button, input, textarea, select {
+        font-family: Arial, Helvetica, sans-serif !important;
+    }
+
+    .chalk-bg {
+        background-image:
+            radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 0),
+            linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+        background-size: 24px 24px, 40px 40px, 40px 40px;
+    }
+
+    @keyframes waddle {
+        0%, 100% {
+            transform: translateY(0) rotate(0deg);
         }
+        25% {
+            transform: translateY(-5px) rotate(-6deg);
+        }
+        75% {
+            transform: translateY(3px) rotate(6deg);
+        }
+    }
+</style>
         @keyframes waddle {
             0%, 100% { transform: translateY(0) rotate(0deg); }
             25% { transform: translateY(-6px) rotate(-8deg); }
