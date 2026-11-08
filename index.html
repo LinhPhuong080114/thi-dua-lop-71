@@ -8,9 +8,17 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
     html, body {
-        font-family: Arial;
+        font-family: Arial, "Helvetica Neue", sans-serif;
         background-color: #1a3324;
         color: #f0fdf4;
+        margin: 0;
+        padding: 0;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    * {
+        box-sizing: border-box;
     }
 
     .chalk-bg {
@@ -21,6 +29,7 @@
         background-size: 24px 24px, 40px 40px, 40px 40px;
     }
 
+    /* 🦆 CON VỊT NHÚN NHÚN */
     @keyframes waddle {
         0%, 100% {
             transform: translateY(0) rotate(0deg);
@@ -38,6 +47,11 @@
     .animate-waddle {
         animation: waddle 0.8s infinite ease-in-out;
         display: inline-block;
+    }
+
+    /* Giữ chữ tiếng Việt hiển thị ổn định */
+    h1, h2, h3, p, span, a, button {
+        font-family: Arial, "Helvetica Neue", sans-serif;
     }
 </style>
 </head>
@@ -95,7 +109,7 @@
     </main>
 
     <footer class="text-center p-4 text-xs text-emerald-400/60">
-        Đua Vịt Thi Đua Lớp 7/1 © 2025 - 2026
+        Bảng Thi Đua Lớp 7/1 © 2025 - 2026
     </footer>
 
 </body>
