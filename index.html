@@ -12,7 +12,8 @@
         margin: 0 !important;
         padding: 0 !important;
 
-        font-family: "Trebuchet MS", Arial, sans-serif !important;
+        /* Sử dụng font hệ thống hiện đại, không sợ bị lỗi font có chân */
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
 
         background-color: #1a3324 !important;
         color: #f0fdf4 !important;
@@ -28,56 +29,23 @@
     /* ===== NỀN BẢNG ===== */
     .chalk-bg {
         background-color: #1a3324 !important;
-
         background-image:
-            radial-gradient(
-                rgba(255, 255, 255, 0.08) 1px,
-                transparent 1px
-            ),
-            linear-gradient(
-                to right,
-                rgba(255, 255, 255, 0.03) 1px,
-                transparent 1px
-            ),
-            linear-gradient(
-                to bottom,
-                rgba(255, 255, 255, 0.03) 1px,
-                transparent 1px
-            ) !important;
-
-        background-size:
-            24px 24px,
-            40px 40px,
-            40px 40px !important;
+            radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+            linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px) !important;
+        background-size: 24px 24px, 40px 40px, 40px 40px !important;
     }
 
     /* ===== ÉP FONT CHO TOÀN BỘ CHỮ ===== */
-    h1,
-    h2,
-    h3,
-    h4,
-    h5,
-    h6,
-    p,
-    span,
-    a,
-    button {
-        font-family: "Trebuchet MS", Arial, sans-serif !important;
+    h1, h2, h3, h4, h5, h6, p, span, a, button {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
     }
 
     /* ===== CON VỊT NHÚN 🦆 ===== */
     @keyframes waddle {
-        0%, 100% {
-            transform: translateY(0) rotate(0deg);
-        }
-
-        25% {
-            transform: translateY(-6px) rotate(-8deg);
-        }
-
-        75% {
-            transform: translateY(4px) rotate(8deg);
-        }
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        25% { transform: translateY(-6px) rotate(-8deg); }
+        75% { transform: translateY(4px) rotate(8deg); }
     }
 
     .animate-waddle {
